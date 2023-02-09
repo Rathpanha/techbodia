@@ -4,39 +4,68 @@ import { Country } from '@/types/Country';
 import Fuse from 'fuse.js';
 import { GetServerSideProps } from 'next';
 import Head from 'next/head';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useRef, useState } from 'react';
 
 export default function Home({ countries }: { countries: Country[] }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const selectRef = useRef<HTMLSelectElement>(null);
   let searchTimeOut: NodeJS.Timeout;
   const router = useRouter();
-  const { name } = router.query;
+  const { name, sort: sort = "default" } = router.query;
+  const asPaths = router.asPath.split("?");
+  const queryString = asPaths[1] ? `?${asPaths[1]}` : '';
+  const searchParams = new URLSearchParams(queryString);
   
   // Set up Fuse instance for fuzzy search
   let fuse = new Fuse(countries, {
     keys: ["name.official", "name.common"]
   });
-  const [ countriesFiltered, setCountriesFiltered ] = useState(!name ? countries : fuse.search(String(name)).map(result => result.item));
+
+  // Filter country by query params
+  const [ countriesFiltered, setCountriesFiltered ] = useState(filterCountriesByQueryParams({
+    countries: countries,
+    fuse: fuse,
+    params: router.query
+  }));
 
   const onSearch = () => {
     // Delay 1sec before searching
     clearTimeout(searchTimeOut);
     searchTimeOut = setTimeout (() => {
       if(inputRef.current) {
-        console.log("search");
+        resetFilter();
         let searchName = inputRef.current.value.trim();
-        router.replace(searchName ? `/?name=${searchName}` : "/");
 
         if(searchName) {
+          searchParams.set("name", searchName);
           const results = fuse.search(searchName).map(result => result.item);
           setCountriesFiltered(results);
         } else {
+          searchParams.delete("name");
           setCountriesFiltered(countries);
         }
+
+        router.replace(`?${searchParams.toString()}`);
       }
     }, 500);
+  }
+
+  const onSort = () => {
+    if(selectRef.current) {
+      const sortOrder = selectRef.current.value;
+      searchParams.set("sort", sortOrder);
+
+      setCountriesFiltered(sortCountries(countriesFiltered, sortOrder));
+      router.replace(`?${searchParams.toString()}`);
+    }
+  }
+
+  const resetFilter = () => {
+    if(selectRef.current) {
+      searchParams.delete("sort");
+      selectRef.current.value = "default";
+    }
   }
 
   return (
@@ -49,7 +78,7 @@ export default function Home({ countries }: { countries: Country[] }) {
       </Head>
 
       <main className={styles.main}>
-        <h1><Link href={"/"}>Countries Catalog</Link></h1>
+        <h1>Countries Catalog</h1>
 
         <input 
           ref={inputRef}
@@ -58,6 +87,12 @@ export default function Home({ countries }: { countries: Country[] }) {
           autoComplete="off"
           onKeyDown={onSearch}
         />
+
+        <select ref={selectRef} onChange={onSort} defaultValue={sort}>
+          <option value="default" disabled>Sort</option>
+          <option value="asc">ASC</option>
+          <option value="desc">DESC</option>
+        </select>
 
         <table>
           <thead>
@@ -83,6 +118,43 @@ export default function Home({ countries }: { countries: Country[] }) {
       </main>
     </>
   )
+}
+
+const filterCountriesByQueryParams = ({ countries, fuse, params }: {
+  countries: Country[]
+  fuse: Fuse<Country>
+  params: any
+}) => {
+  let countriesFiltered: Country[] = countries;
+
+  if(params.name) {
+    countriesFiltered = fuse.search(String(params.name)).map(result => result.item);
+  }
+
+  if(params.sort) {
+    countriesFiltered = sortCountries(countriesFiltered, params.sort);
+  }
+
+  return countriesFiltered;
+}
+
+const sortCountries = (countries: Country[], sortOrder: string) => {
+  countries.sort((a, b) => {
+    const nameA = a.name.official.toUpperCase(); // ignore upper and lowercase
+    const nameB = b.name.official.toUpperCase(); // ignore upper and lowercase
+
+    if(sortOrder === "asc") {
+      if(nameA < nameB) return -1;
+      if(nameA > nameB) return 1;
+    } else if(sortOrder === "desc") {
+      if(nameA < nameB) return 1;
+      if(nameA > nameB) return -1;
+    }
+
+    return 0;
+  });
+
+  return [...countries];
 }
 
 export const getServerSideProps: GetServerSideProps = async () => {
