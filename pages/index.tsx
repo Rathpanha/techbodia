@@ -1,5 +1,6 @@
 import CountryRow from '@/components/CountryRow';
 import { Pagination } from '@/components/Pagination';
+import { CountryFilter } from '@/functions/CountryHelper';
 import styles from '@/styles/Home.module.scss';
 import { Country } from '@/types/Country';
 import Fuse from 'fuse.js';
@@ -122,49 +123,6 @@ export default function Home({ countries, offset, limit, total }: {
   )
 }
 
-const filterCountries = ({ countries, fuse, query }: {
-  countries: Country[]
-  fuse: Fuse<Country>
-  query: any
-}) => {
-  let countriesFiltered: Country[] = countries;
-  let total = countriesFiltered.length;
-  const offset = query.page ? Number(query.page) : 1;
-  const limit = 25;
-
-  if(query.name) {
-    countriesFiltered = fuse.search(String(query.name)).map(result => result.item);
-    total = countriesFiltered.length;
-  }
-
-  if(query.sort) {
-    countriesFiltered = sortCountries(countriesFiltered, query.sort);
-  }
-
-  countriesFiltered = countriesFiltered.slice((offset - 1) * limit, offset * limit);
-  
-  return { countries: countriesFiltered, offset, limit, total };
-}
-
-const sortCountries = (countries: Country[], sortOrder: string) => {
-  countries.sort((a, b) => {
-    const nameA = a.name.official.toUpperCase(); // ignore upper and lowercase
-    const nameB = b.name.official.toUpperCase(); // ignore upper and lowercase
-
-    if(sortOrder === "asc") {
-      if(nameA < nameB) return -1;
-      if(nameA > nameB) return 1;
-    } else if(sortOrder === "desc") {
-      if(nameA < nameB) return 1;
-      if(nameA > nameB) return -1;
-    }
-
-    return 0;
-  });
-
-  return [...countries];
-}
-
 export const getServerSideProps: GetServerSideProps = async ({ query }) => {
   const res = await fetch(`https://restcountries.com/v3.1/all?fields=flags,name,cca2,cca3,altSpellings,idd`);
   const data: Country[] = await res.json();
@@ -174,7 +132,7 @@ export const getServerSideProps: GetServerSideProps = async ({ query }) => {
     keys: ["name.official", "name.common"]
   });
 
-  const { countries, offset, limit, total } = filterCountries({ countries: data, fuse, query });
+  const { countries, offset, limit, total } = CountryFilter({ countries: data, fuse, query });
 
   return { props: { countries, offset, limit, total } };
 }
