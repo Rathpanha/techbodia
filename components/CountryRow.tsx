@@ -1,7 +1,11 @@
 import { Country } from "@/types/Country";
 import Image from "next/image";
 
-const CountryRow = ({ country, no }: { country: Country, no: number }) => {
+const CountryRow = ({ country, no, onNameClick } : { 
+  country: Country
+  no: number
+  onNameClick: () => void 
+}) => {
   const nameNativeRow = [];
   for(const key in country.name.nativeName) {
     nameNativeRow.push(<li key={key}>{country.name.nativeName[key].official}</li>);
@@ -19,7 +23,7 @@ const CountryRow = ({ country, no }: { country: Country, no: number }) => {
     <tr>
       <td>{no}</td>
       <td><Image unoptimized={true} src={country.flags.png} alt={country.name.official} width={100} height={72}/></td>
-      <td>{country.name.official}</td>
+      <td onClick={onNameClick} style={{ cursor: "pointer" }}>{country.name.official}</td>
       <td>
         <ul>
           {nameNativeRow}

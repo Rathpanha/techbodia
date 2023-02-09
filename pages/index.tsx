@@ -1,3 +1,4 @@
+import CountryModal from '@/components/CountryModal';
 import CountryRow from '@/components/CountryRow';
 import { Pagination } from '@/components/Pagination';
 import { CountryFilter } from '@/functions/CountryHelper';
@@ -7,7 +8,7 @@ import Fuse from 'fuse.js';
 import { GetServerSideProps } from 'next';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 
 export default function Home({ countries, offset, limit, total }: { 
   countries: Country[]
@@ -25,6 +26,8 @@ export default function Home({ countries, offset, limit, total }: {
   const searchParams = new URLSearchParams(queryString);
   const startIndex = (( offset - 1 ) * limit) + ( total > 0 ? 1 : 0);
   const endIndex = offset  * limit > total ? total : offset * limit;
+  const [ showPopup, setShowPopup ] = useState(false);
+  const [ countryPopup, setCountryPopup ] = useState<Country>(countries[0]);
 
   const onSearch = () => {
     // Delay 1sec before searching
@@ -75,6 +78,8 @@ export default function Home({ countries, offset, limit, total }: {
       <main className={styles.main}>
         <h1>Countries Catalog</h1>
 
+        <CountryModal country={countryPopup} showPopup={showPopup} onClose={() => setShowPopup(false)}/>
+
         <div className={styles.tool}>
           <div>
             <input 
@@ -113,7 +118,17 @@ export default function Home({ countries, offset, limit, total }: {
           <tbody>
             {
               countries.map((country, inx) => {
-                return <CountryRow key={inx} no={inx + 1} country={country}/>;
+                return (
+                  <CountryRow 
+                    key={inx} 
+                    no={inx + 1} 
+                    country={country} 
+                    onNameClick={() => {
+                      setCountryPopup(country);
+                      setShowPopup(true);
+                    }}
+                  />
+                )
               })
             }
           </tbody>
