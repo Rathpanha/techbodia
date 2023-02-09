@@ -30,7 +30,7 @@ export default function Home({ countries, offset, limit, total }: {
   const [ countryPopup, setCountryPopup ] = useState<Country>(countries[0]);
 
   const onSearch = () => {
-    // Delay 1sec before searching
+    // Delay 0.5sec before searching
     clearTimeout(searchTimeOut);
     searchTimeOut = setTimeout (() => {
       if(inputRef.current) {

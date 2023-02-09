@@ -27,8 +27,8 @@ export const CountryFilter = ({ countries, fuse, query }: {
 
 export const CountrySort = (countries: Country[], sortOrder: string) => {
   countries.sort((a, b) => {
-    const nameA = a.name.official.toUpperCase(); // ignore upper and lowercase
-    const nameB = b.name.official.toUpperCase(); // ignore upper and lowercase
+    const nameA = a.name.official.toUpperCase();
+    const nameB = b.name.official.toUpperCase();
 
     if(sortOrder === "asc") {
       if(nameA < nameB) return -1;
