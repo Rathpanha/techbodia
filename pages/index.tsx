@@ -1,33 +1,29 @@
 import CountryRow from '@/components/CountryRow';
+import { Pagination } from '@/components/Pagination';
 import styles from '@/styles/Home.module.scss';
 import { Country } from '@/types/Country';
 import Fuse from 'fuse.js';
 import { GetServerSideProps } from 'next';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 
-export default function Home({ countries }: { countries: Country[] }) {
+export default function Home({ countries, offset, limit, total }: { 
+  countries: Country[]
+  offset: number 
+  limit: number
+  total: number
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   let searchTimeOut: NodeJS.Timeout;
   const router = useRouter();
-  const { name, sort: sort = "default" } = router.query;
+  const { name, sort: sort = "default", page: page = 1 } = router.query;
   const asPaths = router.asPath.split("?");
   const queryString = asPaths[1] ? `?${asPaths[1]}` : '';
   const searchParams = new URLSearchParams(queryString);
-  
-  // Set up Fuse instance for fuzzy search
-  let fuse = new Fuse(countries, {
-    keys: ["name.official", "name.common"]
-  });
-
-  // Filter country by query params
-  const [ countriesFiltered, setCountriesFiltered ] = useState(filterCountriesByQueryParams({
-    countries: countries,
-    fuse: fuse,
-    params: router.query
-  }));
+  const startIndex = (( offset - 1 ) * limit) + ( total > 0 ? 1 : 0);
+  const endIndex = offset  * limit > total ? total : offset * limit;
 
   const onSearch = () => {
     // Delay 1sec before searching
@@ -39,14 +35,11 @@ export default function Home({ countries }: { countries: Country[] }) {
 
         if(searchName) {
           searchParams.set("name", searchName);
-          const results = fuse.search(searchName).map(result => result.item);
-          setCountriesFiltered(results);
         } else {
           searchParams.delete("name");
-          setCountriesFiltered(countries);
         }
 
-        router.replace(`?${searchParams.toString()}`);
+        router.push(`?${searchParams.toString()}`);
       }
     }, 500);
   }
@@ -56,8 +49,7 @@ export default function Home({ countries }: { countries: Country[] }) {
       const sortOrder = selectRef.current.value;
       searchParams.set("sort", sortOrder);
 
-      setCountriesFiltered(sortCountries(countriesFiltered, sortOrder));
-      router.replace(`?${searchParams.toString()}`);
+      router.push(`?${searchParams.toString()}`);
     }
   }
 
@@ -66,6 +58,8 @@ export default function Home({ countries }: { countries: Country[] }) {
       searchParams.delete("sort");
       selectRef.current.value = "default";
     }
+
+    searchParams.delete("page");
   }
 
   return (
@@ -80,23 +74,31 @@ export default function Home({ countries }: { countries: Country[] }) {
       <main className={styles.main}>
         <h1>Countries Catalog</h1>
 
-        <input 
-          ref={inputRef}
-          defaultValue={name}
-          placeholder="Search by country name..."
-          autoComplete="off"
-          onKeyDown={onSearch}
-        />
+        <div className={styles.tool}>
+          <div>
+            <input 
+              ref={inputRef}
+              defaultValue={name}
+              placeholder="Search by country name..."
+              autoComplete="off"
+              onKeyDown={onSearch}
+            />
 
-        <select ref={selectRef} onChange={onSort} defaultValue={sort}>
-          <option value="default" disabled>Sort</option>
-          <option value="asc">ASC</option>
-          <option value="desc">DESC</option>
-        </select>
+            <select ref={selectRef} onChange={onSort} defaultValue={sort}>
+              <option value="default" disabled>Sort</option>
+              <option value="asc">ASC</option>
+              <option value="desc">DESC</option>
+            </select>
+          </div>
+
+          <Pagination offset={offset} limit={25} total={total}/>
+          <div className={styles.result}><small>Showing { startIndex } to { endIndex } of { total } entries</small></div>
+        </div>
 
         <table>
           <thead>
             <tr>
+              <th>No</th>
               <th>Flag</th>
               <th>Name</th>
               <th>Native Name</th>
@@ -109,8 +111,8 @@ export default function Home({ countries }: { countries: Country[] }) {
 
           <tbody>
             {
-              countriesFiltered.map((country, inx) => {
-                return <CountryRow key={inx} country={country}/>;
+              countries.map((country, inx) => {
+                return <CountryRow key={inx} no={inx + 1} country={country}/>;
               })
             }
           </tbody>
@@ -120,22 +122,28 @@ export default function Home({ countries }: { countries: Country[] }) {
   )
 }
 
-const filterCountriesByQueryParams = ({ countries, fuse, params }: {
+const filterCountries = ({ countries, fuse, query }: {
   countries: Country[]
   fuse: Fuse<Country>
-  params: any
+  query: any
 }) => {
   let countriesFiltered: Country[] = countries;
+  let total = countriesFiltered.length;
+  const offset = query.page ? Number(query.page) : 1;
+  const limit = 25;
 
-  if(params.name) {
-    countriesFiltered = fuse.search(String(params.name)).map(result => result.item);
+  if(query.name) {
+    countriesFiltered = fuse.search(String(query.name)).map(result => result.item);
+    total = countriesFiltered.length;
   }
 
-  if(params.sort) {
-    countriesFiltered = sortCountries(countriesFiltered, params.sort);
+  if(query.sort) {
+    countriesFiltered = sortCountries(countriesFiltered, query.sort);
   }
 
-  return countriesFiltered;
+  countriesFiltered = countriesFiltered.slice((offset - 1) * limit, offset * limit);
+  
+  return { countries: countriesFiltered, offset, limit, total };
 }
 
 const sortCountries = (countries: Country[], sortOrder: string) => {
@@ -157,9 +165,16 @@ const sortCountries = (countries: Country[], sortOrder: string) => {
   return [...countries];
 }
 
-export const getServerSideProps: GetServerSideProps = async () => {
+export const getServerSideProps: GetServerSideProps = async ({ query }) => {
   const res = await fetch(`https://restcountries.com/v3.1/all?fields=flags,name,cca2,cca3,altSpellings,idd`);
-  const data = await res.json();
+  const data: Country[] = await res.json();
 
-  return { props: { countries: data } };
+  // Set up Fuse instance for fuzzy search
+  let fuse = new Fuse(data, {
+    keys: ["name.official", "name.common"]
+  });
+
+  const { countries, offset, limit, total } = filterCountries({ countries: data, fuse, query });
+
+  return { props: { countries, offset, limit, total } };
 }

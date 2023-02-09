@@ -1,0 +1,23 @@
+.paginationWrapper {
+  .paginationButton {
+    padding-left: 0;
+    margin: 0;
+    list-style: none;
+
+    .pageButton {
+      float: left;
+
+      .pageLink {
+        line-height: 1.25;
+        padding: 0 1rem;
+        border: 1px solid black;
+      }
+  
+      &.disabled .pageLink {
+        color: gray;
+        pointer-events: none;
+        cursor: auto;
+      }
+    }
+  }
+}
